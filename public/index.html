@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Steam Hour Booster - Multi Account</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 Steam Hour Booster</h1>
+            <p class="subtitle">Multi-Account Steam Game Hour Farming</p>
+            <div class="server-status">
+                <div class="status-indicator" id="serverStatus">●</div>
+                <span id="serverStatusText">Connecting...</span>
+            </div>
+        </header>
+
+        <main>
+            <!-- Account Management Section -->
+            <section class="card" id="accountManagement">
+                <h2>Account Management</h2>
+                
+                <!-- Add New Account Form -->
+                <div class="add-account-form">
+                    <h3>Add New Account</h3>
+                    <form id="addAccountForm">
+                        <div class="form-row">
+                            <input type="text" id="newUsername" placeholder="Steam Username" required>
+                            <input type="password" id="newPassword" placeholder="Steam Password" required>
+                        </div>
+                        <div class="form-row">
+                            <input type="email" id="newEmail" placeholder="Email (optional)">
+                            <input type="text" id="newDisplayName" placeholder="Display Name (optional)">
+                        </div>
+                        <div class="form-row">
+                            <input type="text" id="newTwoFactorSecret" placeholder="2FA Secret (optional)">
+                            <button type="submit">Add Account</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Accounts List -->
+                <div class="accounts-list" id="accountsList">
+                    <!-- Accounts will be populated here -->
+                </div>
+            </section>
+
+            <!-- Global Status Section -->
+            <section class="card" id="globalStatus">
+                <h2>Global Status</h2>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <span class="status-label">Total Accounts:</span>
+                        <span class="status-value" id="totalAccounts">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Active Sessions:</span>
+                        <span class="status-value" id="activeSessions">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Games Being Boosted:</span>
+                        <span class="status-value" id="totalGames">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Last Update:</span>
+                        <span class="status-value" id="lastUpdate">Never</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Active Sessions Section -->
+            <section class="card" id="activeSessions">
+                <h2>Active Sessions</h2>
+                <div class="sessions-container" id="sessionsContainer">
+                    <p class="no-sessions">No active sessions</p>
+                </div>
+            </section>
+
+            <!-- Logs Section -->
+            <section class="card" id="logsSection">
+                <h2>Activity Logs</h2>
+                <div class="logs-container">
+                    <div class="logs-header">
+                        <button id="clearLogs">Clear Logs</button>
+                        <span class="log-count">Logs: <span id="logCount">0</span></span>
+                    </div>
+                    <div class="logs-content" id="logsContent">
+                        <!-- Logs will be populated here -->
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Steam Guard Modal -->
+    <div class="modal" id="steamGuardModal">
+        <div class="modal-content">
+            <h3>Steam Guard Required</h3>
+            <p id="steamGuardMessage">Please enter your Steam Guard code:</p>
+            <div class="form-group">
+                <input type="text" id="steamGuardCode" placeholder="Enter Steam Guard Code" maxlength="5">
+                <div class="modal-buttons">
+                    <button id="submitSteamGuard">Submit</button>
+                    <button id="cancelSteamGuard">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Selection Modal -->
+    <div class="modal" id="gameSelectionModal">
+        <div class="modal-content">
+            <h3>Select Games to Boost</h3>
+            <p>Enter Steam App IDs (one per line):</p>
+            <div class="form-group">
+                <textarea id="gameIdsInput" placeholder="730&#10;440&#10;570" rows="10"></textarea>
+                <div class="popular-games">
+                    <h4>Popular Games:</h4>
+                    <div class="game-buttons">
+                        <button class="game-btn" data-appid="730">CS2 (730)</button>
+                        <button class="game-btn" data-appid="440">TF2 (440)</button>
+                        <button class="game-btn" data-appid="570">Dota 2 (570)</button>
+                        <button class="game-btn" data-appid="1085660">Destiny 2 (1085660)</button>
+                        <button class="game-btn" data-appid="271590">GTA V (271590)</button>
+                    </div>
+                </div>
+                <div class="modal-buttons">
+                    <button id="startBoostingBtn">Start Boosting</button>
+                    <button id="cancelGameSelection">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>

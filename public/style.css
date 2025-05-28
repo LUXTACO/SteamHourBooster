@@ -1,0 +1,614 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    min-height: 100vh;
+    color: #333;
+}
+
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 30px;
+    color: white;
+}
+
+header h1 {
+    font-size: 2.5em;
+    margin-bottom: 10px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+}
+
+.subtitle {
+    font-size: 1.1em;
+    opacity: 0.9;
+    margin-bottom: 20px;
+}
+
+.server-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-size: 1.1em;
+}
+
+.status-indicator {
+    font-size: 1.5em;
+    animation: pulse 2s infinite;
+}
+
+.status-indicator.connected {
+    color: #4CAF50;
+}
+
+.status-indicator.disconnected {
+    color: #f44336;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+main {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+}
+
+@media (min-width: 1200px) {
+    main {
+        grid-template-columns: 1fr 1fr;
+    }
+    
+    #accountManagement {
+        grid-column: 1 / -1;
+    }
+}
+
+.card {
+    background: white;
+    border-radius: 15px;
+    padding: 25px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.2);
+}
+
+.card h2 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+    font-size: 1.5em;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 10px;
+}
+
+/* Account Management Styles */
+.add-account-form {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+}
+
+.add-account-form h3 {
+    margin-bottom: 15px;
+    color: #2c3e50;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.form-row:last-child {
+    grid-template-columns: 2fr 1fr;
+}
+
+.form-row input, .form-row button {
+    padding: 12px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.form-row input:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 5px rgba(52, 152, 219, 0.3);
+}
+
+.form-row button {
+    background: #3498db;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.3s;
+}
+
+.form-row button:hover {
+    background: #2980b9;
+}
+
+/* Accounts List */
+.accounts-list {
+    display: grid;
+    gap: 15px;
+}
+
+.account-item {
+    background: #f8f9fa;
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    padding: 20px;
+    transition: all 0.3s ease;
+}
+
+.account-item.online {
+    border-color: #28a745;
+    background: #d4edda;
+}
+
+.account-item.boosting {
+    border-color: #ffc107;
+    background: #fff3cd;
+}
+
+.account-item.error {
+    border-color: #dc3545;
+    background: #f8d7da;
+}
+
+.account-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.account-info h4 {
+    margin: 0;
+    color: #2c3e50;
+}
+
+.account-info .account-username {
+    font-size: 0.9em;
+    color: #6c757d;
+}
+
+.account-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9em;
+    font-weight: bold;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #6c757d;
+}
+
+.status-dot.online { background: #28a745; }
+.status-dot.connecting { background: #ffc107; }
+.status-dot.error { background: #dc3545; }
+
+.account-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.3s;
+}
+
+.btn-primary { background: #007bff; color: white; }
+.btn-success { background: #28a745; color: white; }
+.btn-warning { background: #ffc107; color: #212529; }
+.btn-danger { background: #dc3545; color: white; }
+.btn-secondary { background: #6c757d; color: white; }
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.account-games {
+    margin-top: 10px;
+    padding: 10px;
+    background: rgba(0,0,0,0.05);
+    border-radius: 5px;
+}
+
+.games-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.game-tag {
+    background: #007bff;
+    color: white;
+    padding: 3px 8px;
+    border-radius: 15px;
+    font-size: 0.8em;
+}
+
+/* Status Grid */
+.status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.status-item {
+    text-align: center;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 10px;
+    border-left: 4px solid #3498db;
+}
+
+.status-label {
+    display: block;
+    font-size: 0.9em;
+    color: #6c757d;
+    margin-bottom: 5px;
+}
+
+.status-value {
+    display: block;
+    font-size: 1.5em;
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+/* Sessions Container */
+.sessions-container {
+    display: grid;
+    gap: 15px;
+}
+
+.session-item {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 15px;
+    border-left: 4px solid #28a745;
+}
+
+.session-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.session-info h4 {
+    margin: 0;
+    color: #2c3e50;
+}
+
+.session-uptime {
+    font-size: 0.9em;
+    color: #6c757d;
+}
+
+.no-sessions {
+    text-align: center;
+    color: #6c757d;
+    font-style: italic;
+    padding: 40px;
+}
+
+/* Logs Section */
+.logs-container {
+    max-height: 400px;
+}
+
+.logs-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.log-count {
+    font-size: 0.9em;
+    color: #6c757d;
+}
+
+.logs-content {
+    max-height: 300px;
+    overflow-y: auto;
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 15px;
+}
+
+.log-entry {
+    margin-bottom: 8px;
+    padding: 8px;
+    background: white;
+    border-radius: 5px;
+    border-left: 3px solid #3498db;
+    font-size: 0.9em;
+}
+
+.log-entry.info { border-left-color: #17a2b8; }
+.log-entry.success { border-left-color: #28a745; }
+.log-entry.warning { border-left-color: #ffc107; }
+.log-entry.error { border-left-color: #dc3545; }
+
+.log-timestamp {
+    color: #6c757d;
+    font-size: 0.8em;
+}
+
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    backdrop-filter: blur(5px);
+}
+
+.modal.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+}
+
+.modal-content h3 {
+    margin-bottom: 15px;
+    color: #2c3e50;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group input, .form-group textarea {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.form-group input:focus, .form-group textarea:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 5px rgba(52, 152, 219, 0.3);
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+.popular-games {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #e9ecef;
+}
+
+.popular-games h4 {
+    margin-bottom: 10px;
+    color: #2c3e50;
+}
+
+.game-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.game-btn {
+    padding: 8px 12px;
+    background: #e9ecef;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.3s;
+}
+
+.game-btn:hover {
+    background: #3498db;
+    color: white;
+}
+
+.game-btn.selected {
+    background: #28a745;
+    color: white;
+}
+
+/* Toast Notifications */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 2000;
+}
+
+.toast {
+    background: white;
+    border-radius: 8px;
+    padding: 15px 20px;
+    margin-bottom: 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border-left: 4px solid #3498db;
+    opacity: 0;
+    transform: translateX(100%);
+    transition: all 0.3s ease;
+    max-width: 400px;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.toast.success { border-left-color: #28a745; }
+.toast.warning { border-left-color: #ffc107; }
+.toast.error { border-left-color: #dc3545; }
+
+.toast-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    font-size: 1.2em;
+    cursor: pointer;
+    color: #6c757d;
+    margin-left: 15px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .container {
+        padding: 15px;
+    }
+    
+    header h1 {
+        font-size: 2em;
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    
+    .account-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .account-actions {
+        flex-wrap: wrap;
+    }
+    
+    .status-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .modal-content {
+        width: 95%;
+        padding: 20px;
+    }
+    
+    .modal-buttons {
+        flex-direction: column;
+    }
+    
+    .game-buttons {
+        justify-content: center;
+    }
+}
+
+/* Scrollbar Styling */
+.logs-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.logs-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.logs-content::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.logs-content::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* Animation Classes */
+.fade-in {
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.slide-in {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(-20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+/* Loading Spinner */
+.spinner {
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #3498db;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+    margin-right: 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

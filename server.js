@@ -356,8 +356,17 @@ async function startServer() {
   }
 }
 
+// Track shutdown state
+let isShuttingDown = false;
+
 // Graceful shutdown
 const gracefulShutdown = async (signal) => {
+  if (isShuttingDown) {
+    logger.info('Shutdown already in progress...');
+    return;
+  }
+
+  isShuttingDown = true;
   logger.info(`Received ${signal}, starting graceful shutdown...`);
   
   try {
@@ -373,11 +382,11 @@ const gracefulShutdown = async (signal) => {
       process.exit(0);
     });
     
-    // Force exit after 10 seconds
+    // Force exit after 5 seconds
     setTimeout(() => {
       logger.warn('Forced shutdown after timeout');
       process.exit(1);
-    }, 10000);
+    }, 5000);
     
   } catch (error) {
     logger.error('Error during shutdown:', error);

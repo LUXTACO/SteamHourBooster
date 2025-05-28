@@ -1,30 +1,26 @@
 const SteamUser = require('steam-user');
 const { v4: uuidv4 } = require('uuid');
-const { steamLog } = require('../utils/logger');
+const { steamLog, authLog } = require('../utils/logger');
 const db = require('../database/connection');
 
 class SteamManager {
     constructor() {
         this.activeClients = new Map(); // accountId -> { client, sessionId, status, games }
-        this.sessions = new Map(); // sessionId -> sessionData
     }
 
-    // Login to Steam with account credentials
     async loginAccount(accountId, credentials, socket) {
         try {
-            // Check if account is already logged in
             if (this.activeClients.has(accountId)) {
                 throw new Error('Account is already logged in');
             }
 
             const sessionId = uuidv4();
             const client = new SteamUser({
-                dataDirectory: null, // Disable file persistence
-                autoRelogin: false, // Disable auto-relogin
-                debug: true // Enable debug logging
+                dataDirectory: null,
+                autoRelogin: false,
+                debug: true
             });
 
-            // Store client info
             const clientInfo = {
                 client,
                 sessionId,
@@ -36,12 +32,29 @@ class SteamManager {
             };
 
             this.activeClients.set(accountId, clientInfo);
-            this.sessions.set(sessionId, clientInfo);
 
-            // Set up event handlers
+            // Handle submitted Steam Guard code
+            socket.on('submitSteamGuard', async (data) => {
+                if (data.accountId === accountId && clientInfo.guardCallback) {
+                    const code = data.code.trim();
+                    steamLog.account(accountId, 'Processing Steam Guard code', { 
+                        sessionId,
+                        codeLength: code.length 
+                    });
+                    
+                    authLog.info('Steam Guard code received', {
+                        accountId,
+                        sessionId,
+                        status: 'processing_code'
+                    });
+
+                    clientInfo.guardCallback(code);
+                    clientInfo.guardCallback = null;
+                }
+            });
+
             this.setupClientEventHandlers(client, accountId, sessionId, socket);
 
-            // Attempt login
             const loginOptions = {
                 accountName: credentials.username,
                 password: credentials.password
@@ -51,79 +64,72 @@ class SteamManager {
                 loginOptions.twoFactorCode = credentials.twoFactorCode;
             }
 
-            // Set a timeout for the login attempt
+            // Set login timeout
             const loginTimeout = setTimeout(async () => {
-                const clientInfo = this.activeClients.get(accountId);
-                if (clientInfo && clientInfo.status === 'connecting') {
+                const info = this.activeClients.get(accountId);
+                if (info && info.status === 'connecting') {
                     steamLog.error('Login attempt timed out', { accountId, sessionId });
-                    socket.emit('loginError', { 
+                    socket.emit('loginError', {
                         accountId,
                         sessionId,
-                        error: 'Login attempt timed out after 30 seconds' 
+                        error: 'Login attempt timed out after 30 seconds'
                     });
                     await this.disconnectAccount(accountId);
                 }
             }, 30000);
 
+            clientInfo.loginTimeout = loginTimeout;
             client.logOn(loginOptions);
 
-            steamLog.account(accountId, 'Login attempt started', { 
+            steamLog.account(accountId, 'Login attempt started', {
                 username: credentials.username,
-                sessionId 
+                sessionId
             });
-
-            // Add timeout reference to client info
-            clientInfo.loginTimeout = loginTimeout;
 
             return sessionId;
         } catch (error) {
-            steamLog.error('Failed to start login process', { 
-                accountId, 
-                error: error.message 
+            steamLog.error('Failed to start login process', {
+                accountId,
+                error: error.message
             });
             throw error;
         }
     }
 
-    // Setup event handlers for Steam client
     setupClientEventHandlers(client, accountId, sessionId, socket) {
         client.on('loggedOn', async () => {
             try {
                 const clientInfo = this.activeClients.get(accountId);
-                if (clientInfo) {
-                    // Clear login timeout
-                    if (clientInfo.loginTimeout) {
-                        clearTimeout(clientInfo.loginTimeout);
-                        delete clientInfo.loginTimeout;
-                    }
-                    
-                    clientInfo.status = 'logged_in';
-                    clientInfo.steamId = client.steamID.getSteamID64();
+                if (!clientInfo) return;
+
+                if (clientInfo.loginTimeout) {
+                    clearTimeout(clientInfo.loginTimeout);
+                    delete clientInfo.loginTimeout;
                 }
 
-                // Save session to database
-                await this.saveSessionToDatabase(accountId, sessionId, client.steamID.getSteamID64());
+                clientInfo.status = 'logged_in';
+                clientInfo.steamId = client.steamID.getSteamID64();
 
-                steamLog.account(accountId, 'Successfully logged into Steam', { 
+                await this.saveSessionToDatabase(accountId, sessionId, clientInfo.steamId);
+
+                steamLog.account(accountId, 'Successfully logged into Steam', {
                     sessionId,
-                    steamId: client.steamID.getSteamID64()
+                    steamId: clientInfo.steamId
                 });
 
                 socket.emit('loginSuccess', {
                     accountId,
                     sessionId,
-                    steamId: client.steamID.getSteamID64(),
+                    steamId: clientInfo.steamId,
                     message: 'Successfully logged into Steam!'
                 });
 
-                // Update account status in database
                 await this.updateAccountStatus(accountId, 'online');
-
             } catch (error) {
-                steamLog.error('Error handling loggedOn event', { 
-                    accountId, 
-                    sessionId, 
-                    error: error.message 
+                steamLog.error('Error handling loggedOn event', {
+                    accountId,
+                    sessionId,
+                    error: error.message
                 });
             }
         });
@@ -131,95 +137,119 @@ class SteamManager {
         client.on('error', async (err) => {
             try {
                 const clientInfo = this.activeClients.get(accountId);
-                if (clientInfo) {
-                    // Clear login timeout
-                    if (clientInfo.loginTimeout) {
-                        clearTimeout(clientInfo.loginTimeout);
-                        delete clientInfo.loginTimeout;
-                    }
-                    
-                    clientInfo.status = 'error';
+                if (!clientInfo) return;
+
+                if (clientInfo.loginTimeout) {
+                    clearTimeout(clientInfo.loginTimeout);
+                    delete clientInfo.loginTimeout;
                 }
 
-                steamLog.account(accountId, 'Steam login error', { 
-                    sessionId, 
-                    error: err.message 
+                clientInfo.status = 'error';
+                const errorMessage = err.message.toLowerCase();
+                let errorType = 'unknown';
+                let needsTwoFactor = false;
+
+                if (errorMessage.includes('invalid password')) {
+                    errorType = 'invalid_password';
+                } else if (errorMessage.includes('invalid 2fa')) {
+                    errorType = 'invalid_2fa';
+                    needsTwoFactor = true;
+                } else if (errorMessage.includes('requires twofactor')) {
+                    errorType = 'needs_2fa';
+                    needsTwoFactor = true;
+                } else if (errorMessage.includes('rate limit exceeded')) {
+                    errorType = 'rate_limited';
+                }
+
+                steamLog.account(accountId, 'Steam login error', {
+                    sessionId,
+                    errorType,
+                    error: err.message
                 });
 
-                socket.emit('loginError', { 
+                authLog.error('Authentication failed', {
                     accountId,
                     sessionId,
-                    error: err.message 
+                    errorType,
+                    needsTwoFactor,
+                    message: err.message
                 });
 
-                // Clean up failed connection
-                await this.disconnectAccount(accountId);
+                socket.emit('loginError', {
+                    accountId,
+                    sessionId,
+                    errorType,
+                    needsTwoFactor,
+                    error: err.message
+                });
 
+                await this.disconnectAccount(accountId);
             } catch (error) {
-                steamLog.error('Error handling error event', { 
-                    accountId, 
-                    sessionId, 
-                    error: error.message 
+                steamLog.error('Error handling error event', {
+                    accountId,
+                    sessionId,
+                    error: error.message
                 });
             }
         });
 
         client.on('steamGuard', (domain, callback) => {
             const clientInfo = this.activeClients.get(accountId);
-            if (clientInfo) {
-                clientInfo.status = 'awaiting_guard';
-                clientInfo.guardCallback = callback;
-            }
+            if (!clientInfo) return;
 
-            steamLog.account(accountId, 'Steam Guard required', { 
-                sessionId, 
-                domain 
+            clientInfo.status = 'awaiting_guard';
+            clientInfo.guardCallback = callback;
+
+            const guardType = domain ? 'email' : 'mobile_2fa';
+
+            steamLog.account(accountId, 'Steam Guard required', {
+                sessionId,
+                guardType,
+                domain
             });
 
-            socket.emit('steamGuardRequired', { 
+            authLog.info('Steam Guard challenged', {
                 accountId,
                 sessionId,
-                domain 
+                guardType,
+                domain,
+                status: 'awaiting_code'
             });
 
-            // Set up one-time listener for Steam Guard code
-            socket.once(`steamGuardCode_${accountId}`, (code) => {
-                steamLog.account(accountId, 'Steam Guard code received', { sessionId });
-                callback(code);
+            socket.emit('steamGuardRequired', {
+                accountId,
+                sessionId,
+                guardType,
+                domain
             });
         });
 
         client.on('disconnected', async () => {
             try {
                 steamLog.account(accountId, 'Disconnected from Steam', { sessionId });
-
-                // End session in database
                 await this.endSessionInDatabase(sessionId);
-
-                // Update account status
                 await this.updateAccountStatus(accountId, 'offline');
-
-                // Clean up
+                
                 this.activeClients.delete(accountId);
-                this.sessions.delete(sessionId);
 
-                socket.emit('disconnected', { 
+                socket.emit('disconnected', {
                     accountId,
                     sessionId,
-                    message: 'Disconnected from Steam' 
+                    message: 'Disconnected from Steam'
                 });
-
             } catch (error) {
-                steamLog.error('Error handling disconnect event', { 
-                    accountId, 
-                    sessionId, 
-                    error: error.message 
+                steamLog.error('Error handling disconnect event', {
+                    accountId,
+                    sessionId,
+                    error: error.message
                 });
             }
         });
     }
 
-    // Start boosting games for an account
+    // Rest of the class remains unchanged
+    // ...
+
     async startBoosting(accountId, gameIds, socket) {
         try {
             const clientInfo = this.activeClients.get(accountId);
@@ -232,10 +262,15 @@ class SteamManager {
                 throw new Error('No valid game IDs provided');
             }
 
+            // Set online status before starting games
+            clientInfo.client.setPersona(SteamUser.EPersonaState.Online);
+            
+            // Store games in client info
             clientInfo.games = validGameIds;
-            clientInfo.client.gamesPlayed(validGameIds);
 
-            // Save boosting sessions to database
+            // Configure play settings to properly track hours
+            clientInfo.client.gamesPlayed(validGameIds, true);
+
             await this.saveBoostingSessionsToDatabase(accountId, clientInfo.sessionId, validGameIds);
 
             steamLog.boosting(accountId, validGameIds.join(','), 'Started boosting games', {
@@ -252,16 +287,15 @@ class SteamManager {
 
             return validGameIds;
         } catch (error) {
-            steamLog.error('Failed to start boosting', { 
-                accountId, 
-                gameIds, 
-                error: error.message 
+            steamLog.error('Failed to start boosting', {
+                accountId,
+                gameIds,
+                error: error.message
             });
             throw error;
         }
     }
 
-    // Stop boosting for an account
     async stopBoosting(accountId, socket) {
         try {
             const clientInfo = this.activeClients.get(accountId);
@@ -273,7 +307,6 @@ class SteamManager {
                 clientInfo.client.gamesPlayed([]);
             }
 
-            // End boosting sessions in database
             await this.endBoostingSessionsInDatabase(accountId);
 
             const previousGames = clientInfo.games || [];
@@ -292,30 +325,24 @@ class SteamManager {
 
             return true;
         } catch (error) {
-            steamLog.error('Failed to stop boosting', { 
-                accountId, 
-                error: error.message 
+            steamLog.error('Failed to stop boosting', {
+                accountId,
+                error: error.message
             });
             throw error;
         }
     }
 
-    // Disconnect an account
     async disconnectAccount(accountId) {
         try {
             const clientInfo = this.activeClients.get(accountId);
-            if (!clientInfo) {
-                return false;
-            }
+            if (!clientInfo) return false;
 
             if (clientInfo.client && clientInfo.status === 'logged_in') {
                 clientInfo.client.logOff();
             }
 
-            // Clean up immediately
             this.activeClients.delete(accountId);
-            this.sessions.delete(clientInfo.sessionId);
-
             await this.updateAccountStatus(accountId, 'offline');
 
             steamLog.account(accountId, 'Account disconnected manually', {
@@ -324,15 +351,14 @@ class SteamManager {
 
             return true;
         } catch (error) {
-            steamLog.error('Failed to disconnect account', { 
-                accountId, 
-                error: error.message 
+            steamLog.error('Failed to disconnect account', {
+                accountId,
+                error: error.message
             });
             throw error;
         }
     }
 
-    // Get status of all active accounts
     getActiveAccounts() {
         const accounts = [];
         for (const [accountId, clientInfo] of this.activeClients) {
@@ -348,12 +374,9 @@ class SteamManager {
         return accounts;
     }
 
-    // Get specific account status
     getAccountStatus(accountId) {
         const clientInfo = this.activeClients.get(accountId);
-        if (!clientInfo) {
-            return null;
-        }
+        if (!clientInfo) return null;
 
         return {
             accountId,
@@ -365,35 +388,50 @@ class SteamManager {
         };
     }
 
+    async cleanup() {
+        steamLog.info('Cleaning up all Steam connections');
+        
+        for (const [accountId, clientInfo] of this.activeClients) {
+            try {
+                if (clientInfo.client && clientInfo.status === 'logged_in') {
+                    clientInfo.client.logOff();
+                }
+                await this.endSessionInDatabase(clientInfo.sessionId);
+                await this.updateAccountStatus(accountId, 'offline');
+            } catch (error) {
+                steamLog.error('Error during cleanup', { accountId, error: error.message });
+            }
+        }
+
+        this.activeClients.clear();
+    }
+
     // Database helper methods
     async saveSessionToDatabase(accountId, sessionId, steamId) {
         try {
-            const query = `
-                INSERT INTO sessions (account_id, session_id, steam_id, status)
-                VALUES ($1, $2, $3, $4)
-            `;
-            await db.query(query, [accountId, sessionId, steamId, 'connected']);
+            await db.query(
+                'INSERT INTO sessions (account_id, session_id, steam_id, status) VALUES ($1, $2, $3, $4)',
+                [accountId, sessionId, steamId, 'connected']
+            );
         } catch (error) {
-            steamLog.error('Failed to save session to database', { 
-                accountId, 
-                sessionId, 
-                error: error.message 
+            steamLog.error('Failed to save session to database', {
+                accountId,
+                sessionId,
+                error: error.message
             });
         }
     }
 
     async endSessionInDatabase(sessionId) {
         try {
-            const query = `
-                UPDATE sessions 
-                SET ended_at = CURRENT_TIMESTAMP, status = 'disconnected'
-                WHERE session_id = $1
-            `;
-            await db.query(query, [sessionId]);
+            await db.query(
+                'UPDATE sessions SET ended_at = CURRENT_TIMESTAMP, status = $1 WHERE session_id = $2',
+                ['disconnected', sessionId]
+            );
         } catch (error) {
-            steamLog.error('Failed to end session in database', { 
-                sessionId, 
-                error: error.message 
+            steamLog.error('Failed to end session in database', {
+                sessionId,
+                error: error.message
             });
         }
     }
@@ -412,75 +450,51 @@ class SteamManager {
             const sessionDbId = sessionResult.rows[0].id;
 
             for (const gameId of gameIds) {
-                const query = `
-                    INSERT INTO boosting_sessions (account_id, session_id, app_id, status)
-                    VALUES ($1, $2, $3, $4)
-                `;
-                await db.query(query, [accountId, sessionDbId, gameId, 'active']);
+                await db.query(
+                    'INSERT INTO boosting_sessions (account_id, session_id, app_id, status) VALUES ($1, $2, $3, $4)',
+                    [accountId, sessionDbId, gameId, 'active']
+                );
             }
         } catch (error) {
-            steamLog.error('Failed to save boosting sessions to database', { 
-                accountId, 
-                sessionId, 
-                gameIds, 
-                error: error.message 
+            steamLog.error('Failed to save boosting sessions to database', {
+                accountId,
+                sessionId,
+                gameIds,
+                error: error.message
             });
         }
     }
 
     async endBoostingSessionsInDatabase(accountId) {
         try {
-            const query = `
+            await db.query(`
                 UPDATE boosting_sessions 
                 SET ended_at = CURRENT_TIMESTAMP, 
                     status = 'completed',
                     duration_seconds = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - started_at))::INTEGER
                 WHERE account_id = $1 AND status = 'active'
-            `;
-            await db.query(query, [accountId]);
+            `, [accountId]);
         } catch (error) {
-            steamLog.error('Failed to end boosting sessions in database', { 
-                accountId, 
-                error: error.message 
+            steamLog.error('Failed to end boosting sessions in database', {
+                accountId,
+                error: error.message
             });
         }
     }
 
     async updateAccountStatus(accountId, status) {
         try {
-            const query = `
-                UPDATE accounts 
-                SET status = $1, updated_at = CURRENT_TIMESTAMP 
-                WHERE id = $2
-            `;
-            await db.query(query, [status, accountId]);
+            await db.query(
+                'UPDATE accounts SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+                [status, accountId]
+            );
         } catch (error) {
-            steamLog.error('Failed to update account status', { 
-                accountId, 
-                status, 
-                error: error.message 
+            steamLog.error('Failed to update account status', {
+                accountId,
+                status,
+                error: error.message
             });
         }
-    }
-
-    // Cleanup all connections
-    async cleanup() {
-        steamLog.info('Cleaning up all Steam connections');
-        
-        for (const [accountId, clientInfo] of this.activeClients) {
-            try {
-                if (clientInfo.client && clientInfo.status === 'logged_in') {
-                    clientInfo.client.logOff();
-                }
-                await this.endSessionInDatabase(clientInfo.sessionId);
-                await this.updateAccountStatus(accountId, 'offline');
-            } catch (error) {
-                steamLog.error('Error during cleanup', { accountId, error: error.message });
-            }
-        }
-
-        this.activeClients.clear();
-        this.sessions.clear();
     }
 }
 

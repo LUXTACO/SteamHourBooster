@@ -1,33 +1,21 @@
-# Use Node.js 18 Alpine for smaller image size
 FROM node:latest
 
-# Set working directory
 WORKDIR /app
 
-# Install dependencies for node-gyp and native modules
-RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends python3 make g++ && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd -r steam && useradd -r -g steam steam && \
+    mkdir -p /app/logs && \
+    chown -R steam:steam /app && \
+    chmod 755 /app && \
+    chmod 777 /app/logs
 
-# Copy package files
-COPY package*.json ./
+COPY --chown=steam:steam package*.json ./
+RUN npm ci --only=production
 
-# Install dependencies
-RUN npm install --omit=dev
+COPY --chown=steam:steam . .
 
-# Copy application files
-COPY . .
-
-# Create a non-root user for security (Debian syntax)
-RUN groupadd --gid 1001 nodejs && \
-    useradd --uid 1001 --gid nodejs --shell /bin/bash --create-home steam
-
-# Change ownership of the app directory
-RUN mkdir -p /app/logs && chown -R steam:nodejs /app
-
-# Switch to non-root user
 USER steam
-
-# Expose the port
 EXPOSE 3000
-
-# Start the application with better error handling
 CMD ["npm", "start"]

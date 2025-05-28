@@ -47,6 +47,16 @@ const errorRotateFileTransport = new DailyRotateFile({
     format: logFormat
 });
 
+// Configure daily rotate file transport for auth-specific logs
+const authRotateFileTransport = new DailyRotateFile({
+    filename: path.join(logsDir, 'auth-%DATE%.log'),
+    datePattern: 'YYYY-MM-DD',
+    zippedArchive: true,
+    maxSize: '20m',
+    maxFiles: '30d',
+    format: logFormat
+});
+
 // Configure daily rotate file transport for Steam-specific logs
 const steamRotateFileTransport = new DailyRotateFile({
     filename: path.join(logsDir, 'steam-%DATE%.log'),
@@ -78,6 +88,16 @@ if (true) {
 }
 
 // Create specialized loggers
+const authLogger = winston.createLogger({
+    level: process.env.LOG_LEVEL || 'info',
+    format: logFormat,
+    transports: [
+        authRotateFileTransport,
+        dailyRotateFileTransport,
+        errorRotateFileTransport
+    ]
+});
+
 const steamLogger = winston.createLogger({
     level: process.env.LOG_LEVEL || 'info',
     format: logFormat,
@@ -106,6 +126,13 @@ const dbLogger = winston.createLogger({
 
 // Add console for development
 if (process.env.NODE_ENV !== 'production') {
+    authLogger.add(new winston.transports.Console({
+        format: winston.format.combine(
+            winston.format.colorize(),
+            winston.format.simple()
+        )
+    }));
+
     steamLogger.add(new winston.transports.Console({
         format: winston.format.combine(
             winston.format.colorize(),
@@ -171,11 +198,25 @@ const dbLog = {
     }
 };
 
+// Authentication-specific logging
+const authLog = {
+    info: (message, meta = {}) => authLogger.info(message, meta),
+    warn: (message, meta = {}) => authLogger.warn(message, meta),
+    error: (message, meta = {}) => authLogger.error(message, meta),
+    debug: (message, meta = {}) => authLogger.debug(message, meta),
+    
+    // Auth event specific logging
+    event: (type, message, meta = {}) => {
+        authLogger.info(message, { eventType: type, ...meta });
+    }
+};
+
 // Export loggers
 module.exports = {
     logger,
     steamLog,
     dbLog,
+    authLog,
     createContextLogger,
     
     // Convenience exports

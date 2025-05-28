@@ -3,7 +3,7 @@
 -- Create accounts table to store multiple Steam accounts
 CREATE TABLE IF NOT EXISTS accounts (
     id SERIAL PRIMARY KEY,
-    username VARCHAR(255) NOT NULL UNIQUE,
+    username VARCHAR(255) NOT NULL,
     password VARCHAR(255) NOT NULL,
     email VARCHAR(255),
     two_factor_secret VARCHAR(255),
@@ -14,6 +14,11 @@ CREATE TABLE IF NOT EXISTS accounts (
     last_login TIMESTAMP,
     is_active BOOLEAN DEFAULT true
 );
+
+-- Create partial unique index for usernames of active accounts only
+CREATE UNIQUE INDEX IF NOT EXISTS idx_active_accounts_username 
+ON accounts(username) 
+WHERE is_active = true;
 
 -- Create sessions table to track active login sessions
 CREATE TABLE IF NOT EXISTS sessions (

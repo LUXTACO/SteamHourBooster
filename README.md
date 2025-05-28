@@ -310,3 +310,5 @@ This tool is for educational purposes only. Use responsibly and in accordance wi
 **Last Updated**: 2025-05-27  
 **Node.js**: 18+  
 **Docker**: 20.10+
+
+_This software is almost 80% made by ai cuz im lazy :)_

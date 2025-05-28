@@ -9,15 +9,15 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - DATABASE_URL=postgresql://steam_user:steam_password@postgres:5432/steam_booster
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=steam_booster
-      - DB_USER=steam_user
-      - DB_PASSWORD=steam_password
-    restart: "no"  # Temporarily disable restart to see the error
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://steam_user:steam_password@postgres:5432/steam_booster
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: steam_booster
+      DB_USER: steam_user
+      DB_PASSWORD: steam_password
+    restart: "unless-stopped"
     volumes:
       - logs-volume:/app/logs
     networks:

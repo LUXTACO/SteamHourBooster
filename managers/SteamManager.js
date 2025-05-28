@@ -18,7 +18,11 @@ class SteamManager {
             }
 
             const sessionId = uuidv4();
-            const client = new SteamUser();
+            const client = new SteamUser({
+                dataDirectory: null, // Disable file persistence
+                autoRelogin: false, // Disable auto-relogin
+                debug: true // Enable debug logging
+            });
 
             // Store client info
             const clientInfo = {
@@ -47,12 +51,29 @@ class SteamManager {
                 loginOptions.twoFactorCode = credentials.twoFactorCode;
             }
 
+            // Set a timeout for the login attempt
+            const loginTimeout = setTimeout(async () => {
+                const clientInfo = this.activeClients.get(accountId);
+                if (clientInfo && clientInfo.status === 'connecting') {
+                    steamLog.error('Login attempt timed out', { accountId, sessionId });
+                    socket.emit('loginError', { 
+                        accountId,
+                        sessionId,
+                        error: 'Login attempt timed out after 30 seconds' 
+                    });
+                    await this.disconnectAccount(accountId);
+                }
+            }, 30000);
+
             client.logOn(loginOptions);
 
             steamLog.account(accountId, 'Login attempt started', { 
                 username: credentials.username,
                 sessionId 
             });
+
+            // Add timeout reference to client info
+            clientInfo.loginTimeout = loginTimeout;
 
             return sessionId;
         } catch (error) {
@@ -70,6 +91,12 @@ class SteamManager {
             try {
                 const clientInfo = this.activeClients.get(accountId);
                 if (clientInfo) {
+                    // Clear login timeout
+                    if (clientInfo.loginTimeout) {
+                        clearTimeout(clientInfo.loginTimeout);
+                        delete clientInfo.loginTimeout;
+                    }
+                    
                     clientInfo.status = 'logged_in';
                     clientInfo.steamId = client.steamID.getSteamID64();
                 }
@@ -105,6 +132,12 @@ class SteamManager {
             try {
                 const clientInfo = this.activeClients.get(accountId);
                 if (clientInfo) {
+                    // Clear login timeout
+                    if (clientInfo.loginTimeout) {
+                        clearTimeout(clientInfo.loginTimeout);
+                        delete clientInfo.loginTimeout;
+                    }
+                    
                     clientInfo.status = 'error';
                 }
 

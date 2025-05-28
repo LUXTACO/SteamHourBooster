@@ -1,6 +1,10 @@
 class SteamHourBooster {
     constructor() {
-        this.socket = io();
+        this.socket = io('/', {
+            transports: ['websocket', 'polling'],
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000
+        });
         this.accounts = [];
         this.activeAccounts = [];
         this.currentAccountForSteamGuard = null;

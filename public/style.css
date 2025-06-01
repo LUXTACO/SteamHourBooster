@@ -123,6 +123,7 @@ input, .form-row button {
     padding: 12px;
     background-color: #121212;
     border: 2px solid #3a3e41;
+    color: white;
     border-radius: 8px;
     font-size: 14px;
 }
